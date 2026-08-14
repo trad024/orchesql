@@ -97,6 +97,7 @@ class GraphState(BaseModel):
 
     attempts: list[SQLAttempt] = Field(default_factory=list)
     generated_sql: Optional[str] = None
+    explanation: Optional[str] = None
     results: Optional[ExecutionResult] = None
 
     error: Optional[str] = None

@@ -1,7 +1,18 @@
+import pytest
 from langgraph.types import Command
 
+from orchesql.api import main as api_main
 from orchesql.orchestrator.graph import build_graph
 from orchesql.orchestrator.state import GraphState, SchemaColumn, SchemaTable
+
+
+@pytest.mark.asyncio
+async def test_api_lifespan_handles_unavailable_database(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql://orchesql:orchesql@localhost:5432/orchesql")
+    monkeypatch.setattr(api_main, "introspect_schema", lambda _conn_str: (_ for _ in ()).throw(ConnectionError("offline")))
+
+    async with api_main.lifespan(api_main.app):
+        assert api_main._graph is None
 
 
 def _ambiguous_schema():

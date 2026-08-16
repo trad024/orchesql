@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from contextlib import asynccontextmanager
 from typing import Any
@@ -18,6 +19,7 @@ from orchesql.orchestrator.graph import build_graph
 from orchesql.orchestrator.state import GraphState, Status
 from orchesql.orchestrator.tracing import get_tracer
 
+logger = logging.getLogger("orchesql.api")
 load_dotenv()
 
 _graph = None
@@ -49,8 +51,15 @@ async def lifespan(app: FastAPI):
     global _graph
     conn_str = os.getenv("DATABASE_URL")
     if conn_str:
-        schema = introspect_schema(conn_str)
-        _graph = build_graph(schema, conn_str, _get_llm_call())
+        try:
+            schema = introspect_schema(conn_str)
+            _graph = build_graph(schema, conn_str, _get_llm_call())
+        except Exception:
+            logger.warning(
+                "Database unavailable during startup; the API will remain available but queries will fail until Postgres is reachable.",
+                exc_info=True,
+            )
+            _graph = None
     yield
 
 

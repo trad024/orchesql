@@ -11,7 +11,6 @@ import {
   Menu,
   PanelLeft,
   Plus,
-  Settings2,
   Sparkles,
   X,
 } from 'lucide-react'
@@ -41,6 +40,12 @@ const PIPELINE_STEPS = [
   'Writing SQL',
   'Running query',
   'Formatting results',
+]
+
+const EXAMPLE_PROMPTS = [
+  'How many customers do we have?',
+  "What's the total revenue from all orders?",
+  'List all product names and their prices',
 ]
 
 function formatSql(sql: string): string[] {
@@ -188,6 +193,25 @@ function ResultCard({
   )
 }
 
+function EmptyState({ onPick }: { onPick: (prompt: string) => void }) {
+  return (
+    <div className="empty-state">
+      <div className="empty-mark">
+        <Sparkles size={18} />
+      </div>
+      <h1>Ask your data anything</h1>
+      <p>Helm turns a plain question into read-only SQL, runs it against OrcheSQL, and shows its work.</p>
+      <div className="empty-prompts">
+        {EXAMPLE_PROMPTS.map((prompt) => (
+          <button key={prompt} className="empty-prompt" onClick={() => onPick(prompt)}>
+            {prompt}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function SqlInspector({ sql, onClose }: { sql: string; onClose: () => void }) {
   const lines = formatSql(sql)
   return (
@@ -227,13 +251,22 @@ export default function Page() {
   const [response, setResponse] = useState<QueryResponse | null>(null)
   const [latencyMs, setLatencyMs] = useState(0)
   const [connected, setConnected] = useState<boolean | null>(null)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const timerRef = useRef<number | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     fetch(`${API_URL}/health`)
       .then((r) => setConnected(r.ok))
       .catch(() => setConnected(false))
   }, [])
+
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [question])
 
   const canSubmit = question.trim().length > 0
   const status = useMemo(() => (submitted ? 'READY' : 'IDLE'), [submitted])
@@ -329,10 +362,7 @@ export default function Page() {
           <span className="status">
             <span className="status-dot" /> {status}
           </span>
-          <button className="icon-button" aria-label="Settings">
-            <Settings2 size={16} />
-          </button>
-          <button className="avatar" aria-label="Account">
+          <button className="avatar" aria-label="Account" title="Signed in as YOU">
             YOU
           </button>
         </div>
@@ -341,10 +371,15 @@ export default function Page() {
         </button>
       </header>
       <div className="workspace">
-        <aside className={`history-sidebar ${sidebarOpen ? 'open' : ''}`}>
+        {sidebarCollapsed && (
+          <button className="sidebar-reveal icon-button" onClick={() => setSidebarCollapsed(false)} aria-label="Show sidebar">
+            <PanelLeft size={15} />
+          </button>
+        )}
+        <aside className={`history-sidebar ${sidebarOpen ? 'open' : ''} ${sidebarCollapsed ? 'collapsed' : ''}`}>
           <div className="sidebar-top">
             <span className="eyebrow">WORKSPACE</span>
-            <button className="icon-button" aria-label="Collapse sidebar">
+            <button className="icon-button" onClick={() => setSidebarCollapsed(true)} aria-label="Collapse sidebar">
               <PanelLeft size={15} />
             </button>
           </div>
@@ -357,9 +392,9 @@ export default function Page() {
               <span>OrcheSQL</span>
               <span className="connected">{connected === null ? 'checking…' : connected ? 'connected' : 'offline'}</span>
             </div>
-            <button className="settings-link">
+            <span className="settings-link" title={API_URL}>
               <Info size={14} /> {API_URL}
-            </button>
+            </span>
           </div>
         </aside>
         <section className="conversation">
@@ -371,6 +406,14 @@ export default function Page() {
               <span className="context-chip">read-only</span>
             </div>
             <div className="thread">
+              {!submitted && (
+                <EmptyState
+                  onPick={(prompt) => {
+                    setQuestion(prompt)
+                    textareaRef.current?.focus()
+                  }}
+                />
+              )}
               {submitted && (
                 <div className="user-message">
                   <span className="message-label">YOU</span>
@@ -416,6 +459,7 @@ export default function Page() {
             <div className="composer-wrap">
               <div className="composer">
                 <textarea
+                  ref={textareaRef}
                   value={question}
                   onChange={(e) => setQuestion(e.target.value)}
                   onKeyDown={(e) => {

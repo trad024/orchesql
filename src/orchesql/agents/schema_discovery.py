@@ -32,23 +32,47 @@ def _build_fk_graph(tables: list[SchemaTable]) -> dict[str, set[str]]:
     return graph
 
 
+def _singularize(word: str) -> str:
+    # ponytail: naive trailing-s strip, not real lemmatization -- good enough
+    # to match "product" against "products"/"product_id" without a NLP dep
+    if len(word) > 3 and word.endswith("s") and not word.endswith("ss"):
+        return word[:-1]
+    return word
+
+
 def _tokenize(text: str) -> set[str]:
-    return set(re.findall(r"[a-z][a-z0-9]*", text.lower()))
+    raw = re.findall(r"[a-z][a-z0-9]*", text.lower())
+    return {_singularize(w) for w in raw}
+
+
+# A table's own name matching is a much stronger signal than one of its
+# columns matching -- otherwise a table ties with anything that merely has
+# a foreign key column referencing it (e.g. "customers" tying with "orders"
+# because orders has a customer_id column).
+_TABLE_NAME_WEIGHT = 3
+_COLUMN_NAME_WEIGHT = 1
 
 
 def _find_seed_tables(
     question: str, tables: list[SchemaTable]
-) -> list[tuple[str, int]]:
-    """Return (table_name, match_count) for tables whose name or column names
-    overlap with tokens in the question. Sorted by match count descending."""
+) -> list[tuple[str, float]]:
+    """Return (table_name, score) for tables whose name or column names
+    overlap with tokens in the question. Sorted by score descending."""
     q_tokens = _tokenize(question)
-    scored: list[tuple[str, int]] = []
+    scored: list[tuple[str, float]] = []
     for t in tables:
         t_tokens = _tokenize(t.name)
         col_tokens: set[str] = set()
         for c in t.columns:
             col_tokens |= _tokenize(c.name)
-        hits = len(q_tokens & (t_tokens | col_tokens))
+        # Fraction of the table's own name matched, not raw token count --
+        # otherwise a compound name like "order_items" gets full table-name
+        # credit for matching just "order", tying with the actual "orders"
+        # table whose entire (one-word) name matched.
+        name_match_frac = len(q_tokens & t_tokens) / len(t_tokens) if t_tokens else 0
+        hits = _TABLE_NAME_WEIGHT * name_match_frac + _COLUMN_NAME_WEIGHT * len(
+            q_tokens & col_tokens
+        )
         if hits:
             scored.append((t.name, hits))
     scored.sort(key=lambda x: x[1], reverse=True)
@@ -101,7 +125,16 @@ def discover(
 
     top_score = seeds[0][1]
     tied = [name for name, score in seeds if score == top_score]
-    ambiguities = tied if len(tied) > 1 else []
+    # Tables that tie but are directly FK-connected aren't a genuine
+    # ambiguity -- that's a join spanning both (e.g. "customer" + "orders"
+    # in one question), and the pruned schema below already includes both
+    # via BFS regardless of whether we flag it. Only ask when the tied
+    # tables are otherwise unrelated.
+    tied_are_connected = len(tied) > 1 and all(
+        any(other in fk_graph.get(name, set()) for other in tied if other != name)
+        for name in tied
+    )
+    ambiguities = tied if len(tied) > 1 and not tied_are_connected else []
 
     seed_names = [name for name, _ in seeds[:5]]
     expanded = _bfs_expand(seed_names, fk_graph)

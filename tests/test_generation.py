@@ -66,3 +66,15 @@ def test_build_prompt_includes_schema():
     state = _state_with_schema()
     msgs = build_prompt(state)
     assert any("orders" in m["content"] for m in msgs)
+
+
+def test_build_prompt_anchors_on_disambiguation_answer():
+    # A pinned table can still legitimately pull in other tables via FK
+    # BFS (e.g. a bridging table with two foreign keys) -- the prompt must
+    # tell the LLM which table the user actually confirmed, or it'll pick
+    # whichever ambiguous column it likes among what's in the pruned schema.
+    state = _state_with_schema()
+    state.clarification_response = "orders"
+    msgs = build_prompt(state)
+    user_msg = next(m["content"] for m in msgs if m["role"] == "user")
+    assert "confirmed this question is specifically about the `orders` table" in user_msg

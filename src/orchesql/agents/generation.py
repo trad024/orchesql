@@ -65,6 +65,15 @@ def build_prompt(state: GraphState) -> list[dict[str, str]]:
     )
 
     user_msg = f"Schema:\n{schema_text}\n\nQuestion: {state.question}"
+    if state.clarification_response:
+        user_msg += (
+            f"\n\nThe user was asked to disambiguate and confirmed this "
+            f"question is specifically about the `{state.clarification_response}` "
+            f"table. The schema above may include other tables reachable via "
+            f"foreign key for joins, but prefer `{state.clarification_response}` "
+            f"wherever the question is otherwise ambiguous (e.g. which table's "
+            f"name/id/etc. column to use)."
+        )
     if prior_attempts:
         user_msg += prior_attempts
 

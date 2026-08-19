@@ -128,14 +128,18 @@ function ResultCard({
   results,
   explanation,
   latencyMs,
-  onSql,
-  hasSql,
+  sql,
+  sqlOpen,
+  onToggleSql,
+  onCloseSql,
 }: {
   results: QueryResults
   explanation?: string | null
   latencyMs: number
-  onSql: () => void
-  hasSql: boolean
+  sql?: string | null
+  sqlOpen: boolean
+  onToggleSql: () => void
+  onCloseSql: () => void
 }) {
   const chartable = isChartable(results)
   return (
@@ -146,11 +150,16 @@ function ResultCard({
           <h2>{results.row_count} row{results.row_count === 1 ? '' : 's'}</h2>
         </div>
         <div className="result-actions">
-          {hasSql && (
-            <button className="sql-chip" onClick={onSql}>
+          {sql && (
+            <button
+              className={`sql-chip ${sqlOpen ? 'active' : ''}`}
+              onClick={onToggleSql}
+              aria-expanded={sqlOpen}
+            >
               &lt;/&gt; SQL
             </button>
           )}
+          {sql && sqlOpen && <SqlPopover sql={sql} onClose={onCloseSql} />}
         </div>
       </div>
       {explanation && (
@@ -212,17 +221,42 @@ function EmptyState({ onPick }: { onPick: (prompt: string) => void }) {
   )
 }
 
-function SqlInspector({ sql, onClose }: { sql: string; onClose: () => void }) {
+function SqlPopover({ sql, onClose }: { sql: string; onClose: () => void }) {
   const lines = formatSql(sql)
+  const ref = useRef<HTMLDivElement>(null)
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    function onDown(e: MouseEvent) {
+      const target = e.target as Element | null
+      // the chip itself toggles -- let it handle its own click, or we'd
+      // close here and immediately reopen on the following click event
+      if (target?.closest?.('.sql-chip')) return
+      if (ref.current && !ref.current.contains(target as Node)) onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    document.addEventListener('mousedown', onDown)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('mousedown', onDown)
+    }
+  }, [onClose])
+
+  async function copy() {
+    await navigator.clipboard.writeText(sql)
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 1500)
+  }
+
   return (
-    <aside className="sql-inspector" aria-label="SQL inspector">
-      <div className="inspector-head">
-        <div>
-          <span className="eyebrow">INSPECTOR</span>
-          <h3>Generated SQL</h3>
-        </div>
-        <button className="icon-button" onClick={onClose} aria-label="Close SQL inspector">
-          <X size={16} />
+    <div className="sql-popover" ref={ref} role="dialog" aria-label="Generated SQL">
+      <div className="popover-head">
+        <span className="popover-file">query.sql</span>
+        <button className="icon-button" onClick={onClose} aria-label="Close SQL">
+          <X size={15} />
         </button>
       </div>
       <div className="code-block">
@@ -233,10 +267,10 @@ function SqlInspector({ sql, onClose }: { sql: string; onClose: () => void }) {
           </div>
         ))}
       </div>
-      <button className="copy-sql" onClick={() => navigator.clipboard.writeText(sql)}>
-        <Copy size={14} /> Copy SQL
+      <button className="copy-sql" onClick={copy}>
+        <Copy size={14} /> {copied ? 'Copied' : 'Copy SQL'}
       </button>
-    </aside>
+    </div>
   )
 }
 
@@ -448,8 +482,10 @@ export default function Page() {
                         results={response.results}
                         explanation={response.explanation}
                         latencyMs={latencyMs}
-                        hasSql={!!response.sql}
-                        onSql={() => setInspector(true)}
+                        sql={response.sql}
+                        sqlOpen={inspector}
+                        onToggleSql={() => setInspector((v) => !v)}
+                        onCloseSql={() => setInspector(false)}
                       />
                     )}
                   </div>
@@ -485,7 +521,6 @@ export default function Page() {
             </div>
           </div>
         </section>
-        {inspector && response?.sql && <SqlInspector sql={response.sql} onClose={() => setInspector(false)} />}
       </div>
     </main>
   )

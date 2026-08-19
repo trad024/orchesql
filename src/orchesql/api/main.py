@@ -33,7 +33,7 @@ def _get_llm_call():
         api_key=os.environ["GROQ_API_KEY"],
         base_url="https://api.groq.com/openai/v1",
     )
-    model = os.getenv("ORCHESQL_MODEL", "llama-3.3-70b-versatile")
+    model = os.getenv("ORCHESQL_MODEL", "openai/gpt-oss-120b")
 
     def call(messages: list[dict]) -> str:
         resp = client.chat.completions.create(

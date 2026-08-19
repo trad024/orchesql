@@ -20,7 +20,7 @@ services:
     environment:
       DATABASE_URL: postgresql://orchesql:orchesql@db:5432/orchesql
       GROQ_API_KEY: ${GROQ_API_KEY}
-      ORCHESQL_MODEL: ${ORCHESQL_MODEL:-llama-3.3-70b-versatile}
+      ORCHESQL_MODEL: ${ORCHESQL_MODEL:-openai/gpt-oss-120b}
     ports:
       - "8000:8000"
     depends_on:

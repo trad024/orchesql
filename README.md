@@ -86,7 +86,7 @@ to query immediately.
    ```
    DATABASE_URL=postgresql://orchesql:orchesql@localhost:5432/orchesql
    GROQ_API_KEY=your-groq-api-key
-   ORCHESQL_MODEL=llama-3.3-70b-versatile
+   ORCHESQL_MODEL=openai/gpt-oss-120b
    ```
 
 2. Start it:
@@ -152,7 +152,7 @@ All read from the environment (or `.env` in the repo root).
 |---|---|---|---|
 | `DATABASE_URL` | yes | — | Postgres connection string. Schema is introspected once at startup and cached — no per-request DB call for schema discovery. |
 | `GROQ_API_KEY` | yes | — | Groq API key, used for `generation` and `disambiguation`. |
-| `ORCHESQL_MODEL` | no | `llama-3.3-70b-versatile` | Groq model id. |
+| `ORCHESQL_MODEL` | no | `openai/gpt-oss-120b` | Groq model id. |
 | `ORCHESQL_CORS_ORIGINS` | no | `http://localhost:3000` | Comma-separated list of origins allowed to call the API from a browser. |
 | `NEXT_PUBLIC_API_URL` *(web only)* | no | `http://localhost:8000` | API base URL the web console calls. |
 
